@@ -9,26 +9,29 @@ static void sprand_update_limit(struct sprand_state *sp)
 {
 	sp->cur_state_blocks++;
 	if (sp->cur_state_blocks == sp->blocks_per_state) {
-		sp->limit++;
 		sp->cur_state_blocks = 0;
+		sp->blocks_per_state = 0;
 
-		/*
-		 * Rearrange Dedrick eq 3 to obtain an expression
-		 * for the fraction of all blocks with given number of
-		 * valid pages and multiply by total number of blocks.
-		 * This produces the number of blocks with the given
-		 * number of valid pages.
-		 *
-		 * TODO fix this to use fractions as in sprandomize.py
-		 * because we lose fractions of blocks
-		 */
-		sp->blocks_per_state = (sp->n_bar * sp->blockcount + sp->remainder) / sp->limit;
+		while (sp->blocks_per_state == 0) {
+			sp->limit++;
 
-		/*
-		 * we are doing integer arithmetic above
-		 * so save the remainder for use next time
-		 */
-		sp->remainder = ((uint64_t) (sp->n_bar * sp->blockcount) + sp->remainder) % sp->limit;
+			/*
+			 * Rearrange Dedrick eq 3 to obtain an expression
+			 * for the fraction of all blocks with given number of
+			 * valid pages and multiply by total number of blocks.
+			 * This produces the number of blocks with the given
+			 * number of valid pages.
+			 */
+			sp->blocks_per_state = floor(sp->n_bar * sp->blockcount / sp->limit + sp->remainder);
+
+			/*
+			 * we are rounding to obtain an integer above
+			 * so save the remainder for use next time
+			 */
+			sp->remainder = (sp->n_bar * sp->blockcount / sp->limit + sp->remainder) - sp->blocks_per_state;
+			dprint(FD_RANDOM, "sprand: valid_pages = %lu, blocks_per_state = %lu, remainder = %10.7f\n",
+					sp->limit, sp->blocks_per_state, sp->remainder);
+		}
 	}
 }
 
@@ -42,6 +45,7 @@ int sprand_next(struct thread_data *td, struct fio_file *f, uint64_t *b)
 		sp->cur_block_pages = 0;
 
 		sprand_update_limit(sp);
+
 		dprint(FD_RANDOM, "sprand: block %lu, limit = %lu\n",
 				sp->blocknum, sp->limit);
 	}
@@ -86,9 +90,14 @@ int sprand_init(struct thread_data *td)
 
 	for_each_file(td, f, i) {
 		sp = &f->sprand;
-		sp->blocknum = sp->cur_block_pages = sp->remainder = 0;
+		sp->blocknum = sp->cur_block_pages = sp->cur_state_blocks = 0;
+		sp->remainder = 0.0;
 		sp->pagesperblock = o->spphyscapacity / o->bs[DDIR_WRITE] / o->spebcount;
 		sp->blockcount = o->spebcount;
+
+		sp->pagelist = malloc(sp->pagesperblock * sizeof(uint64_t));
+		if (!sp->pagelist)
+			return 1;
 
 		op = (double) (o->spphyscapacity - o->splogcapacity) / o->splogcapacity;
 
@@ -115,7 +124,7 @@ int sprand_init(struct thread_data *td)
 		 * n_gc formula is from Dedrick eq 6
 		 * sp->limit = n_gc for the first block
 		 * Start writing blocks so that the one with the least
-		 * valid data have n_gc valid pages
+		 * valid data has n_gc valid pages
 		 * Dedrick is imprecise regarding how many blocks have
 		 * n_gc valid pages but there must be at least one
 		 */
@@ -124,14 +133,7 @@ int sprand_init(struct thread_data *td)
 		/* write one block with n_gc valid pages */
 		sp->blocks_per_state = 1;
 
-		sp->cur_state_blocks = 0;
-
-		sp->pagelist = malloc(sp->pagesperblock * sizeof(uint64_t));
-
-		if (!sp->pagelist)
-			return 1;
-
-		dprint(FD_RANDOM, "sprand: op = %7.4f, wa = %7.4f, n_bar = %7.4f\n",
+		dprint(FD_RANDOM, "sprand: op = %10.7f, wa = %10.7f, n_bar = %10.7f\n",
 				op, wa, sp->n_bar);
 		dprint(FD_RANDOM, "sprand: pagesperblock = %llu, blocks per state = %llu\n",
 				(unsigned long long) sp->pagesperblock,

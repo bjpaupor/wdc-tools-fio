@@ -27,7 +27,7 @@ struct sprand_state {
 	uint64_t pagesperblock;
 	uint64_t cur_state_blocks;
 	uint64_t blocks_per_state;
-	uint64_t remainder;
+	double remainder;
 	double n_bar;
 };
 
