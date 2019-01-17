@@ -4816,6 +4816,17 @@ struct fio_option fio_options[FIO_MAX_OPTS] = {
 		.category = FIO_OPT_C_GENERAL,
 		.group  = FIO_OPT_G_RUNTIME,
 	},
+        {
+		.name   = "singlepass_seq",
+		.lname  = "Single pass sequential",
+		.alias  = "sp_seq",
+		.type   = FIO_OPT_BOOL,
+		.off1   = offsetof(struct thread_options, spseq),
+		.help   = "Use sequential offsets for single pass steady state",
+		.def    = "0",
+		.category = FIO_OPT_C_IO,
+		.group  = FIO_OPT_G_RANDOM,
+	},
 	{
 		.name = NULL,
 	},

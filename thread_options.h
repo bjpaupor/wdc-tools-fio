@@ -348,6 +348,7 @@ struct thread_options {
 	unsigned long long spphyscapacity;
 	unsigned long long splogcapacity;
 	unsigned long long spebcount;
+	unsigned int spseq;
 };
 
 #define FIO_TOP_STR_MAX		256

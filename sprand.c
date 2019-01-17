@@ -38,6 +38,7 @@ static void sprand_update_limit(struct sprand_state *sp)
 int sprand_next(struct thread_data *td, struct fio_file *f, uint64_t *b)
 {
 	struct sprand_state *sp = &f->sprand;
+	struct thread_options *o = &td->o;
 
 	/* move on to the next block */
 	if (sp->cur_block_pages == sp->pagesperblock) {
@@ -53,10 +54,13 @@ int sprand_next(struct thread_data *td, struct fio_file *f, uint64_t *b)
 	if (sp->cur_block_pages < sp->limit) {
 		uint64_t off = 0;
 
-		/* get offset from lfsr */
-		assert(fio_file_lfsr(f));
-		if (lfsr_next(&f->lfsr, &off))
-			assert(0);	// TODO figure out what to do here
+		if (!o->spseq) {
+			/* get offset from lfsr */
+			assert(fio_file_lfsr(f));
+			if (lfsr_next(&f->lfsr, &off))
+				assert(0);
+		} else
+			off = sp->spoffset++;
 
 		*b = off;
 		sp->pagelist[sp->cur_block_pages] = off;
@@ -90,7 +94,7 @@ int sprand_init(struct thread_data *td)
 
 	for_each_file(td, f, i) {
 		sp = &f->sprand;
-		sp->blocknum = sp->cur_block_pages = sp->cur_state_blocks = 0;
+		sp->blocknum = sp->cur_block_pages = sp->cur_state_blocks = sp->spoffset = 0;
 		sp->remainder = 0.0;
 		sp->pagesperblock = o->spphyscapacity / o->bs[DDIR_WRITE] / o->spebcount;
 		sp->blockcount = o->spebcount;
