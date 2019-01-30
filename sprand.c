@@ -39,11 +39,15 @@ int sprand_next(struct thread_data *td, struct fio_file *f, uint64_t *b)
 {
 	struct sprand_state *sp = &f->sprand;
 	struct thread_options *o = &td->o;
+	bool newpage;
+	uint64_t off = 0;
 
 	/* move on to the next block */
 	if (sp->cur_block_pages == sp->pagesperblock) {
 		sp->blocknum++;
 		sp->cur_block_pages = 0;
+		sp->validpages = 0;
+		lfsr_reset(&sp->lfsr, td->rand_seeds[FIO_RAND_BLOCK_OFF]);
 
 		sprand_update_limit(sp);
 
@@ -51,34 +55,48 @@ int sprand_next(struct thread_data *td, struct fio_file *f, uint64_t *b)
 				sp->blocknum, sp->limit);
 	}
 
-	if (sp->cur_block_pages < sp->limit) {
-		uint64_t off = 0;
+	if (sp->validpages == 0)
+		newpage = true;	/* first page always new */
+	else {
+		/* flip a coin to decide whether to provide
+		 * a new offset or reuse one */
+		if (lfsr_next(&sp->lfsr, &off))
+			assert(0);
 
+		/*
+		 * Because the first page is always a new offset
+		 * we use sp->limit-1
+		 */
+		newpage = off < sp->limit-1;
+	}
+
+	if (newpage) {
 		if (!o->spseq) {
 			/* get offset from lfsr */
 			assert(fio_file_lfsr(f));
-			if (lfsr_next(&f->lfsr, &off))
+			if (lfsr_next(&f->lfsr, b))
 				assert(0);
 		} else
-			off = sp->spoffset++;
+			*b = sp->seq_offset++;
 
-		*b = off;
-		sp->pagelist[sp->cur_block_pages] = off;
-	} else if (sp->cur_block_pages < sp->pagesperblock) {
+		sp->pagelist[sp->validpages] = *b;
+		sp->validpages++;
+	} else {
+		assert(sp->cur_block_pages < sp->pagesperblock);
+
 		/* invalidate already written page */
-		*b = sp->pagelist[rand_between(&td->sprand_state, 0, sp->limit-1)];
-	} else
-		assert(0);
+		*b = sp->pagelist[rand_between(&td->sprand_state, 0, sp->validpages-1)];
+	}
 
 	dprint(FD_RANDOM, "sprand: block %llu, cur_block_pages %llu, "
 			"cur_state_blocks %llu, blocks_per_state %llu, "
-			"offset %llu, invalidate %d\n",
+			"offset %llu, invalidate %d, sp-lfsr %llu\n",
 			(unsigned long long) sp->blocknum,
 			(unsigned long long) sp->cur_block_pages,
 			(unsigned long long) sp->cur_state_blocks,
 			(unsigned long long) sp->blocks_per_state,
-			(unsigned long long) *b,
-			sp->cur_block_pages >= sp->limit);
+			(unsigned long long) *b, !newpage,
+			(unsigned long long) off);
 
 	sp->cur_block_pages++;
 	return 0;
@@ -94,10 +112,20 @@ int sprand_init(struct thread_data *td)
 
 	for_each_file(td, f, i) {
 		sp = &f->sprand;
-		sp->blocknum = sp->cur_block_pages = sp->cur_state_blocks = sp->spoffset = 0;
+		sp->blocknum = sp->cur_block_pages = sp->cur_state_blocks = sp->seq_offset = sp->validpages = 0;
 		sp->remainder = 0.0;
 		sp->pagesperblock = o->spphyscapacity / o->bs[DDIR_WRITE] / o->spebcount;
 		sp->blockcount = o->spebcount;
+
+		/*
+		 * Create an LFSR for each block to choose between
+		 * new and repeated pages. Because the first page is
+		 * always new we only need values from 0..sp->pagesperblock-2
+		 *
+		 * TODO new random seed
+		 */
+		if (lfsr_init(&sp->lfsr, sp->pagesperblock-1, td->rand_seeds[FIO_RAND_BLOCK_OFF], 0))
+			return 1;
 
 		sp->pagelist = malloc(sp->pagesperblock * sizeof(uint64_t));
 		if (!sp->pagelist)
@@ -125,8 +153,9 @@ int sprand_init(struct thread_data *td)
 		sp->n_bar = wa / (op + 1.0);
 
 		/*
-		 * n_gc formula is from Dedrick eq 6
+		 * sp->limit is the number of valid pages per block
 		 * sp->limit = n_gc for the first block
+		 * n_gc formula is from Dedrick eq 6
 		 * Start writing blocks so that the one with the least
 		 * valid data has n_gc valid pages
 		 * Dedrick is imprecise regarding how many blocks have

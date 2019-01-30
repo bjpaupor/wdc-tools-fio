@@ -3,6 +3,7 @@
 
 #include <inttypes.h>
 
+#include <lib/lfsr.h>
 
 struct fio_file;
 struct thread_data;
@@ -27,9 +28,11 @@ struct sprand_state {
 	uint64_t pagesperblock;
 	uint64_t cur_state_blocks;
 	uint64_t blocks_per_state;
-	uint64_t spoffset;
+	uint64_t seq_offset;
+	uint64_t validpages;
 	double remainder;
 	double n_bar;
+	struct fio_lfsr lfsr;
 };
 
 int sprand_next(struct thread_data *td, struct fio_file *f, uint64_t *b);
