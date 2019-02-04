@@ -30,6 +30,7 @@ struct sprand_state {
 	uint64_t blocks_per_state;
 	uint64_t seq_offset;
 	uint64_t validpages;
+	uint64_t avglimit;
 	double remainder;
 	double n_bar;
 	struct fio_lfsr lfsr;

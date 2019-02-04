@@ -7,12 +7,18 @@
 
 static void sprand_update_limit(struct sprand_state *sp)
 {
+	double avglimit;
+
 	sp->cur_state_blocks++;
 	if (sp->cur_state_blocks == sp->blocks_per_state) {
 		sp->cur_state_blocks = 0;
 		sp->blocks_per_state = 0;
 
-		while (sp->blocks_per_state == 0) {
+		avglimit = sp->remainder * sp->limit;
+		dprint(FD_RANDOM, "sprand: valid_pages = %lu, blocks_per_state = %lu, remainder = %10.7f, avglimit = %10.7f\n",
+				sp->limit, sp->blocks_per_state, sp->remainder, avglimit);
+
+		while (!sp->blocks_per_state) {
 			sp->limit++;
 
 			/*
@@ -29,9 +35,17 @@ static void sprand_update_limit(struct sprand_state *sp)
 			 * so save the remainder for use next time
 			 */
 			sp->remainder = (sp->n_bar * sp->blockcount / sp->limit + sp->remainder) - sp->blocks_per_state;
-			dprint(FD_RANDOM, "sprand: valid_pages = %lu, blocks_per_state = %lu, remainder = %10.7f\n",
-					sp->limit, sp->blocks_per_state, sp->remainder);
+
+			avglimit += sp->n_bar * sp->blockcount;
+			if (sp->blocks_per_state)
+				avglimit -= sp->remainder * sp->limit;
+
+			dprint(FD_RANDOM, "sprand: valid_pages = %lu, blocks_per_state = %lu, remainder = %10.7f, avglimit = %10.7f\n",
+					sp->limit, sp->blocks_per_state, sp->remainder, avglimit);
 		}
+
+		sp->avglimit = avglimit / sp->blocks_per_state;
+		assert(sp->avglimit <= sp->limit);
 	}
 }
 
@@ -40,19 +54,27 @@ int sprand_next(struct thread_data *td, struct fio_file *f, uint64_t *b)
 	struct sprand_state *sp = &f->sprand;
 	struct thread_options *o = &td->o;
 	bool newpage;
-	uint64_t off = 0;
+	uint64_t rand = 0;
 
 	/* move on to the next block */
 	if (sp->cur_block_pages == sp->pagesperblock) {
 		sp->blocknum++;
 		sp->cur_block_pages = 0;
 		sp->validpages = 0;
-		lfsr_reset(&sp->lfsr, td->rand_seeds[FIO_RAND_BLOCK_OFF]);
+
+		if (lfsr_reset(&sp->lfsr,
+			sp->blocknum * td->rand_seeds[FIO_RAND_BLOCK_OFF]))	{
+			dprint(FD_RANDOM, "bad lfsr random seed %lu\n",
+				sp->blocknum * td->rand_seeds[FIO_RAND_BLOCK_OFF]);
+			if (lfsr_reset(&sp->lfsr,
+				sp->blocknum * td->rand_seeds[FIO_RAND_BLOCK_OFF] - 1))
+				assert(0);
+		}
 
 		sprand_update_limit(sp);
 
-		dprint(FD_RANDOM, "sprand: block %lu, limit = %lu\n",
-				sp->blocknum, sp->limit);
+		dprint(FD_RANDOM, "sprand: block %lu, limit = %lu, avglimit = %lu\n",
+				sp->blocknum, sp->limit, sp->avglimit);
 	}
 
 	if (sp->validpages == 0)
@@ -60,14 +82,14 @@ int sprand_next(struct thread_data *td, struct fio_file *f, uint64_t *b)
 	else {
 		/* flip a coin to decide whether to provide
 		 * a new offset or reuse one */
-		if (lfsr_next(&sp->lfsr, &off))
+		if (lfsr_next(&sp->lfsr, &rand))
 			assert(0);
 
 		/*
 		 * Because the first page is always a new offset
-		 * we use sp->limit-1
+		 * we use sp->avglimit-1
 		 */
-		newpage = off < sp->limit-1;
+		newpage = rand < sp->avglimit-1;
 	}
 
 	if (newpage) {
@@ -96,7 +118,7 @@ int sprand_next(struct thread_data *td, struct fio_file *f, uint64_t *b)
 			(unsigned long long) sp->cur_state_blocks,
 			(unsigned long long) sp->blocks_per_state,
 			(unsigned long long) *b, !newpage,
-			(unsigned long long) off);
+			(unsigned long long) rand);
 
 	sp->cur_block_pages++;
 	return 0;
@@ -161,7 +183,7 @@ int sprand_init(struct thread_data *td)
 		 * Dedrick is imprecise regarding how many blocks have
 		 * n_gc valid pages but there must be at least one
 		 */
-		sp->limit = sp->pagesperblock * (wa - 1.0) / wa;
+		sp->limit = sp->avglimit = sp->pagesperblock * (wa - 1.0) / wa;
 
 		/* write one block with n_gc valid pages */
 		sp->blocks_per_state = 1;
@@ -171,8 +193,8 @@ int sprand_init(struct thread_data *td)
 		dprint(FD_RANDOM, "sprand: pagesperblock = %llu, blocks per state = %llu\n",
 				(unsigned long long) sp->pagesperblock,
 				(unsigned long long) sp->blocks_per_state);
-		dprint(FD_RANDOM, "sprand: block %lu, limit = %lu\n",
-				sp->blocknum, sp->limit);
+		dprint(FD_RANDOM, "sprand: block %lu, limit = %lu, avglimit = %lu\n",
+				sp->blocknum, sp->limit, sp->avglimit);
 	}
 
 	return 0;
