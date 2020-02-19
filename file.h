@@ -5,6 +5,7 @@
 #include "compiler/compiler.h"
 #include "io_ddir.h"
 #include "flist.h"
+#include "sprand.h"
 #include "lib/zipf.h"
 #include "lib/axmap.h"
 #include "lib/lfsr.h"
@@ -151,6 +152,7 @@ struct fio_file {
 	union {
 		struct zipf_state zipf;
 		struct gauss_state gauss;
+		struct sprand_state sprand;
 	};
 
 	int references;

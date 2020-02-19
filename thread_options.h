@@ -344,6 +344,10 @@ struct thread_options {
 	int max_open_zones;
 	fio_fp64_t zrt;
 	fio_fp64_t zrf;
+
+	unsigned long long spphyscapacity;
+	unsigned long long splogcapacity;
+	unsigned long long spebcount;
 };
 
 #define FIO_TOP_STR_MAX		256
