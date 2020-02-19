@@ -49,6 +49,7 @@ int main(void)
 
 	fio_unittest_register(fio_unittest_lib_memalign);
 	fio_unittest_register(fio_unittest_lib_strntol);
+	fio_unittest_register(fio_unittest_lib_lambertsw);
 	fio_unittest_register(fio_unittest_oslib_strlcat);
 	fio_unittest_register(fio_unittest_oslib_strndup);
 	fio_unittest_register(fio_unittest_oslib_strcasestr);
