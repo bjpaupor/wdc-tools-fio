@@ -15,8 +15,10 @@ static void sprand_update_limit(struct sprand_state *sp)
 		sp->blocks_per_state = 0;
 
 		avglimit = sp->remainder * sp->limit;
-		dprint(FD_RANDOM, "sprand: valid_pages = %lu, blocks_per_state = %lu, remainder = %10.7f, avglimit = %10.7f\n",
-				sp->limit, sp->blocks_per_state, sp->remainder, avglimit);
+		dprint(FD_RANDOM, "sprand: valid_pages = %" PRIu64
+			", blocks_per_state = %" PRIu64
+			", remainder = %10.7f, avglimit = %10.7f\n",
+			sp->limit, sp->blocks_per_state, sp->remainder, avglimit);
 
 		while (!sp->blocks_per_state) {
 			sp->limit++;
@@ -40,8 +42,10 @@ static void sprand_update_limit(struct sprand_state *sp)
 			if (sp->blocks_per_state)
 				avglimit -= sp->remainder * sp->limit;
 
-			dprint(FD_RANDOM, "sprand: valid_pages = %lu, blocks_per_state = %lu, remainder = %10.7f, avglimit = %10.7f\n",
-					sp->limit, sp->blocks_per_state, sp->remainder, avglimit);
+			dprint(FD_RANDOM, "sprand: valid_pages = %" PRIu64
+				", blocks_per_state = %" PRIu64 
+				", remainder = %10.7f, avglimit = %10.7f\n",
+				sp->limit, sp->blocks_per_state, sp->remainder, avglimit);
 		}
 
 		sp->avglimit = avglimit / sp->blocks_per_state;
@@ -64,7 +68,7 @@ int sprand_next(struct thread_data *td, struct fio_file *f, uint64_t *b)
 
 		if (lfsr_reset(&sp->lfsr,
 			sp->blocknum * td->rand_seeds[FIO_RAND_BLOCK_OFF]))	{
-			dprint(FD_RANDOM, "bad lfsr random seed %lu\n",
+			dprint(FD_RANDOM, "bad lfsr random seed %" PRIu64 "\n",
 				sp->blocknum * td->rand_seeds[FIO_RAND_BLOCK_OFF]);
 			if (lfsr_reset(&sp->lfsr,
 				sp->blocknum * td->rand_seeds[FIO_RAND_BLOCK_OFF] - 1))
@@ -73,8 +77,8 @@ int sprand_next(struct thread_data *td, struct fio_file *f, uint64_t *b)
 
 		sprand_update_limit(sp);
 
-		dprint(FD_RANDOM, "sprand: block %lu, limit = %lu, avglimit = %lu\n",
-				sp->blocknum, sp->limit, sp->avglimit);
+		dprint(FD_RANDOM, "sprand: block %" PRIu64 ", limit = %" PRIu64
+			", avglimit = %" PRIu64 "\n", sp->blocknum, sp->limit, sp->avglimit);
 	}
 
 	if (sp->validpages == 0)
@@ -193,7 +197,8 @@ int sprand_init(struct thread_data *td)
 		dprint(FD_RANDOM, "sprand: pagesperblock = %llu, blocks per state = %llu\n",
 				(unsigned long long) sp->pagesperblock,
 				(unsigned long long) sp->blocks_per_state);
-		dprint(FD_RANDOM, "sprand: block %lu, limit = %lu, avglimit = %lu\n",
+		dprint(FD_RANDOM, "sprand: block %" PRIu64 ", limit = %" PRIu64
+				", avglimit = %" PRIu64 "\n",
 				sp->blocknum, sp->limit, sp->avglimit);
 	}
 
