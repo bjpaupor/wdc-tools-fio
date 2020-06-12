@@ -50,7 +50,7 @@ SOURCE :=	$(sort $(patsubst $(SRCDIR)/%,%,$(wildcard $(SRCDIR)/crc/*.c)) \
 		gettime-thread.c helpers.c json.c idletime.c td_error.c \
 		profiles/tiobench.c profiles/act.c io_u_queue.c filelock.c \
 		workqueue.c rate-submit.c optgroup.c helper_thread.c \
-		steadystate.c zone-dist.c zbd.c
+		steadystate.c zone-dist.c zbd.c sprand.c
 
 ifdef CONFIG_LIBHDFS
   HDFSFLAGS= -I $(JAVA_HOME)/include -I $(JAVA_HOME)/include/linux -I $(FIO_LIBHDFS_INCLUDE)
@@ -338,12 +338,14 @@ ifdef CONFIG_HAVE_CUNIT
 UT_OBJS = unittests/unittest.o
 UT_OBJS += unittests/lib/memalign.o
 UT_OBJS += unittests/lib/strntol.o
+UT_OBJS += unittests/lib/lambertsw.o
 UT_OBJS += unittests/oslib/strlcat.o
 UT_OBJS += unittests/oslib/strndup.o
 UT_OBJS += unittests/oslib/strcasestr.o
 UT_OBJS += unittests/oslib/strsep.o
 UT_TARGET_OBJS = lib/memalign.o
 UT_TARGET_OBJS += lib/strntol.o
+UT_TARGET_OBJS += lib/lambertsw.o
 UT_TARGET_OBJS += oslib/strlcat.o
 UT_TARGET_OBJS += oslib/strndup.o
 UT_TARGET_OBJS += oslib/strcasestr.o

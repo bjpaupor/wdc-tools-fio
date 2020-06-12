@@ -952,6 +952,41 @@ static int fixup_options(struct thread_data *td)
 		o->slat_percentiles = 0;
 
 	/*
+	 * random_distribution=sprandom
+	 * requires
+	 * 	random_generator=lfsr
+	 * 	rw=randwrite
+	 * 	single file
+	 * 	fixed block size
+	 */
+	if (o->random_distribution == FIO_RAND_DIST_SPRAND) {
+		if (o->random_generator != FIO_RAND_GEN_LFSR) {
+			log_err("fio: random distribution sprandom requires random_generator=lfsr\n");
+			ret |= 1;
+		}
+		if (o->td_ddir != TD_DDIR_RANDWRITE) {
+			log_err("fio: random distribution sprandom requires rw=randwrite\n");
+			ret |= 1;
+		}
+		if (!fixed_block_size(o)) {
+			log_err("fio: random distribution sprandom requires a fixed block size\n");
+			ret |= 1;
+		}
+		if (td->files_index > 1) {
+			log_err("fio: random distribution sprandom works with only a single device\n");
+			ret |= 1;
+		}
+		if (o->size == 0) {
+			o->size = o->splogcapacity;
+			dprint(FD_PARSE, "size not specified; using sp logical capacity %llu\n", o->size);
+		}
+		if (o->io_size == 0) {
+			o->io_size = o->spphyscapacity;
+			dprint(FD_PARSE, "io_size not specified; using sp physical capacity %llu\n", o->io_size);
+		}
+	}
+
+	/*
 	 * Fix these up to be nsec internally
 	 */
 	o->max_latency *= 1000ULL;
@@ -1030,6 +1065,7 @@ static void td_fill_rand_seeds_internal(struct thread_data *td, bool use64)
 	init_rand_seed(&td->dedupe_state, td->rand_seeds[FIO_DEDUPE_OFF], false);
 	init_rand_seed(&td->zone_state, td->rand_seeds[FIO_RAND_ZONE_OFF], false);
 	init_rand_seed(&td->prio_state, td->rand_seeds[FIO_RAND_PRIO_CMDS], false);
+	init_rand_seed(&td->sprand_state, td->rand_seeds[FIO_RAND_SPRAND_OFF], false);
 
 	if (!td_random(td))
 		return;

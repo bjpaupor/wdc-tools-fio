@@ -1026,6 +1026,58 @@ static int parse_zoned_distribution(struct thread_data *td, const char *input,
 	return ret;
 }
 
+static int parse_sprand_distribution(struct thread_data *td, const char *input, void *data)
+{
+	char *val, *str, *p;
+	int ret;
+
+	p = str = strdup(input);
+
+	strip_blank_front(&str);
+	strip_blank_end(str);
+
+	/* skip 'sprandom:' */
+	str += 9;
+	dprint(FD_PARSE, "parse_sprand_distribution: str = <%s>\n", str);
+
+	val = get_next_str(&str);
+	if (!val)
+		goto err;
+	dprint(FD_PARSE, "parse_sprand_distribution: val = <%s>\n", val);
+	ret = check_str_bytes(val, (long long *) &td->o.spphyscapacity, data);
+	if (ret)
+		goto err;
+
+	val = get_next_str(&str);
+	if (!val)
+		goto err;
+	dprint(FD_PARSE, "parse_sprand_distribution: val = <%s>\n", val);
+	ret = check_str_bytes(val, (long long *) &td->o.splogcapacity, data);
+	if (ret)
+		goto err;
+
+	if (td->o.spphyscapacity < td->o.splogcapacity) {
+		log_err("fio: spss logical capacity cannot exceed physical capacity\n");
+		goto err;
+	}
+
+	val = get_next_str(&str);
+	if (!val)
+		goto err;
+	dprint(FD_PARSE, "parse_sprand_distribution: val = <%s>\n", val);
+	td->o.spebcount = atoll(val);
+
+	dprint(FD_PARSE, "parse_sprand_distribution: physcapacity %llu, logcapacity %llu, ebcount %llu\n",
+			td->o.spphyscapacity, td->o.splogcapacity, td->o.spebcount);
+
+	free(p);
+	return 0;
+
+err:	log_err("fio: mismatch in sprand option <%s>\n", p);
+	free(p);
+	return 1;
+}
+
 static int str_random_distribution_cb(void *data, const char *str)
 {
 	struct thread_data *td = cb_data_to_td(data);
@@ -1042,6 +1094,8 @@ static int str_random_distribution_cb(void *data, const char *str)
 		return parse_zoned_distribution(td, str, false);
 	else if (td->o.random_distribution == FIO_RAND_DIST_ZONED_ABS)
 		return parse_zoned_distribution(td, str, true);
+	else if (td->o.random_distribution == FIO_RAND_DIST_SPRAND)
+		return parse_sprand_distribution(td, str, data);
 	else
 		return 0;
 
@@ -2321,6 +2375,10 @@ struct fio_option fio_options[FIO_MAX_OPTS] = {
 			  { .ival = "zoned_abs",
 			    .oval = FIO_RAND_DIST_ZONED_ABS,
 			    .help = "Zoned absolute random distribution",
+			  },
+			  { .ival = "sprandom",
+			    .oval = FIO_RAND_DIST_SPRAND,
+			    .help = "Single-pass randomization distribution",
 			  },
 		},
 		.category = FIO_OPT_C_IO,
@@ -4779,6 +4837,17 @@ struct fio_option fio_options[FIO_MAX_OPTS] = {
 		.is_time = 1,
 		.category = FIO_OPT_C_GENERAL,
 		.group  = FIO_OPT_G_RUNTIME,
+	},
+        {
+		.name   = "singlepass_seq",
+		.lname  = "Single pass sequential",
+		.alias  = "sp_seq",
+		.type   = FIO_OPT_BOOL,
+		.off1   = offsetof(struct thread_options, spseq),
+		.help   = "Use sequential offsets for single pass steady state",
+		.def    = "0",
+		.category = FIO_OPT_C_IO,
+		.group  = FIO_OPT_G_RANDOM,
 	},
 	{
 		.name = NULL,

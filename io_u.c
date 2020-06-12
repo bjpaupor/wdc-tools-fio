@@ -274,6 +274,13 @@ bail:
 	return 0;
 }
 
+static int __get_next_rand_offset_sprand(struct thread_data *td,
+					struct fio_file *f, enum fio_ddir ddir,
+					uint64_t *b)
+{
+	return sprand_next(td, f, b);
+}
+
 static int get_next_rand_offset(struct thread_data *td, struct fio_file *f,
 				enum fio_ddir ddir, uint64_t *b)
 {
@@ -295,6 +302,8 @@ static int get_next_rand_offset(struct thread_data *td, struct fio_file *f,
 		return __get_next_rand_offset_zoned(td, f, ddir, b);
 	else if (td->o.random_distribution == FIO_RAND_DIST_ZONED_ABS)
 		return __get_next_rand_offset_zoned_abs(td, f, ddir, b);
+	else if (td->o.random_distribution == FIO_RAND_DIST_SPRAND)
+		return __get_next_rand_offset_sprand(td, f, ddir, b);
 
 	log_err("fio: unknown random distribution: %d\n", td->o.random_distribution);
 	return 1;

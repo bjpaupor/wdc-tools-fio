@@ -140,6 +140,7 @@ enum {
 	FIO_RAND_POISSON2_OFF,
 	FIO_RAND_POISSON3_OFF,
 	FIO_RAND_PRIO_CMDS,
+	FIO_RAND_SPRAND_OFF,
 	FIO_RAND_NR_OFFS,
 };
 
@@ -258,6 +259,7 @@ struct thread_data {
 	struct frand_state dedupe_state;
 	struct frand_state zone_state;
 	struct frand_state prio_state;
+	struct frand_state sprand_state;
 
 	struct zone_split_index **zone_state_index;
 	unsigned int num_open_zones;
@@ -838,6 +840,7 @@ enum {
 	FIO_RAND_DIST_GAUSS,
 	FIO_RAND_DIST_ZONED,
 	FIO_RAND_DIST_ZONED_ABS,
+	FIO_RAND_DIST_SPRAND,
 };
 
 #define FIO_DEF_ZIPF		1.1
